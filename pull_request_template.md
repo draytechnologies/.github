@@ -14,3 +14,4 @@
 
 <!-- Be creative! This is useful even for backend PRs. -->
 
+<!-- If your PR includes ORM migrations, please add the generated SQL code -->
