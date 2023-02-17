@@ -12,10 +12,8 @@
 
 # Screenshots, SQL, etc.
 
-<!-- Be creative! This is useful even for backend PRs. -->
+<!-- If your PR includes ORM migrations, include the generated SQL code for validation! -->
 
-<!-- If your PR includes ORM migrations, please add the generated SQL code -->
-
-# Are there Database Schema changes in this PR? Which ones?
-
-<!-- If there are schema changes, please tag @menegat00 and @mike-altonji to update DAGs -->
+<!------>
+<!-- If there are database schema changes, tag @menegat00 and @mike-altonji on this PR since Airflow DAGs may break -->
+<!------>
