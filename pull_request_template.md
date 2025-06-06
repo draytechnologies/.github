@@ -3,7 +3,7 @@
 
 # More Details
 <!-- Explain what this PR is doing, and most importantly, HOW and WHY -->
-<!-- If possible, brief description product-oriented to be used when doing the announcement on #new-feature-announcements -->
+<!-- If possible, brief product-oriented description to be used when doing the announcement on #new-feature-announcements -->
 
 # Comments
 <!-- Questions, uncertainties, how you tested it, differences from design, etc -->
