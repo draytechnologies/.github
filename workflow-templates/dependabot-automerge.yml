@@ -1,50 +1,10 @@
 name: Dependabot auto-merge
+
 on: pull_request
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
-  dependabot:
-    runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
-    env:
-      PR_URL: ${{ github.event.pull_request.html_url }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - name: Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@v2
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Check conditions and decide actions
-        id: checks
-        run: |
-          UPDATE_TYPE="${{ steps.metadata.outputs.update-type }}"
-
-          # Check if this is a patch or minor update
-          IS_PATCHABLE=$([[ "$UPDATE_TYPE" =~ ^version-update:semver-(patch|minor)$ ]] && echo true || echo false)
-
-          # Check for disable label
-          HAS_DISABLE_LABEL=$(gh pr view "$PR_URL" --json labels --jq 'any(.labels[]; .name == "disable-automerge")')
-
-          # Get PR data once and parse both checks
-          PR_DATA=$(gh pr view "$PR_URL" --json reviews,autoMergeRequest)
-          HAS_APPROVAL=$(echo "$PR_DATA" | jq -r 'any(.reviews[]; .author.login == "github-actions" and .state == "APPROVED")')
-          HAS_AUTOMERGE=$(echo "$PR_DATA" | jq -r '.autoMergeRequest != null')
-
-          # Determine if we should approve and/or enable auto-merge
-          SHOULD_APPROVE=$([[ "$IS_PATCHABLE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_APPROVAL" == "false" ]] && echo true || echo false)
-          SHOULD_AUTOMERGE=$([[ "$IS_PATCHABLE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_AUTOMERGE" == "false" ]] && echo true || echo false)
-
-          echo "should_approve=$SHOULD_APPROVE" >> $GITHUB_OUTPUT
-          echo "should_automerge=$SHOULD_AUTOMERGE" >> $GITHUB_OUTPUT
-
-      - name: Approve and enable auto-merge
-        if: ${{ steps.checks.outputs.should_approve == 'true' || steps.checks.outputs.should_automerge == 'true' }}
-        run: |
-          [[ "${{ steps.checks.outputs.should_approve }}" == "true" ]] && gh pr review --approve "$PR_URL"
-          [[ "${{ steps.checks.outputs.should_automerge }}" == "true" ]] && gh pr merge --squash --auto "$PR_URL"
+  dependabot-automerge:
+    uses: draytechnologies/.github/.github/workflows/dependabot-automerge.yml@main
+    with:
+      update-types: 'patch,minor'
 

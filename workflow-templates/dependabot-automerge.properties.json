@@ -1,0 +1,18 @@
+{
+  "name": "Dependabot auto-merge",
+  "description": "Automatically approve and merge Dependabot pull requests for patch and minor version updates.",
+  "iconName": "dependabot",
+  "categories": [
+    "dependency-management",
+    "automation"
+  ],
+  "filePatterns": [
+    "package.json$",
+    "requirements.txt$",
+    "Gemfile$",
+    "pom.xml$",
+    "build.gradle$",
+    "go.mod$",
+    "Cargo.toml$"
+  ]
+}
