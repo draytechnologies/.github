@@ -1,0 +1,71 @@
+name: Dependabot auto-merge
+
+on:
+  workflow_call:
+    inputs:
+      update-types:
+        description: 'Comma-separated list of semver types to auto-merge (patch,minor,major)'
+        required: false
+        default: 'patch,minor'
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    env:
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Check conditions and decide actions
+        id: checks
+        env:
+          UPDATE_TYPES: ${{ inputs.update-types }}
+        run: |
+          UPDATE_TYPE="${{ steps.metadata.outputs.update-type }}"
+
+          # Build regex pattern from comma-separated input
+          TYPES_PATTERN=""
+          IFS=',' read -ra TYPES_ARRAY <<< "$UPDATE_TYPES"
+          for i in "${!TYPES_ARRAY[@]}"; do
+            TYPE=$(echo "${TYPES_ARRAY[$i]}" | xargs)  # trim whitespace
+            if [ $i -eq 0 ]; then
+              TYPES_PATTERN="version-update:semver-$TYPE"
+            else
+              TYPES_PATTERN="$TYPES_PATTERN|version-update:semver-$TYPE"
+            fi
+          done
+
+          # Check if this is an allowed update type
+          IS_ALLOWED_TYPE=$([[ "$UPDATE_TYPE" =~ ^($TYPES_PATTERN)$ ]] && echo true || echo false)
+
+          # Check for disable label
+          HAS_DISABLE_LABEL=$(gh pr view "$PR_URL" --json labels --jq 'any(.labels[]; .name == "disable-automerge")')
+
+          # Get PR data once and parse both checks
+          PR_DATA=$(gh pr view "$PR_URL" --json reviews,autoMergeRequest)
+          HAS_APPROVAL=$(echo "$PR_DATA" | jq -r 'any(.reviews[]; .author.login == "github-actions" and .state == "APPROVED")')
+          HAS_AUTOMERGE=$(echo "$PR_DATA" | jq -r '.autoMergeRequest != null')
+
+          # Determine if we should approve and/or enable auto-merge
+          SHOULD_APPROVE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_APPROVAL" == "false" ]] && echo true || echo false)
+          SHOULD_AUTOMERGE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_AUTOMERGE" == "false" ]] && echo true || echo false)
+
+          echo "should_approve=$SHOULD_APPROVE" >> $GITHUB_OUTPUT
+          echo "should_automerge=$SHOULD_AUTOMERGE" >> $GITHUB_OUTPUT
+
+      - name: Approve and enable auto-merge
+        if: ${{ steps.checks.outputs.should_approve == 'true' || steps.checks.outputs.should_automerge == 'true' }}
+        run: |
+          [[ "${{ steps.checks.outputs.should_approve }}" == "true" ]] && gh pr review --approve "$PR_URL"
+          [[ "${{ steps.checks.outputs.should_automerge }}" == "true" ]] && gh pr merge --squash --auto "$PR_URL"
