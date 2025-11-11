@@ -1,0 +1,70 @@
+name: Dependabot auto-merge
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Check for disable-automerge label
+        id: check_label
+        run: |
+          LABELS=$(gh pr view "$PR_URL" --json labels --jq '.labels[].name')
+          if echo "$LABELS" | grep -q "disable-automerge"; then
+            echo "has_disable_label=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_disable_label=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Check if PR already has approval and auto-merge
+        id: check_status
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
+        run: |
+          PR_DATA=$(gh pr view "$PR_URL" --json reviews,autoMergeRequest)
+
+          # Check if already approved by github-actions[bot]
+          if echo "$PR_DATA" | jq -e '.reviews | any(.author.login == "github-actions" and .state == "APPROVED")' > /dev/null 2>&1; then
+            echo "has_approval=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_approval=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check if auto-merge is already enabled
+          if echo "$PR_DATA" | jq -e '.autoMergeRequest | . != null' > /dev/null 2>&1; then
+            echo "has_automerge=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_automerge=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Approve PR
+        if: ${{ steps.check_label.outputs.has_disable_label == 'false' && (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor') && steps.check_status.outputs.has_approval == 'false' }}
+        run: |
+          gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Enable auto-merge
+        if: ${{ steps.check_label.outputs.has_disable_label == 'false' && (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor') && steps.check_status.outputs.has_automerge == 'false' }}
+        run: |
+          gh pr merge --squash --auto "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
