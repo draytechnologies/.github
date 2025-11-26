@@ -1,0 +1,34 @@
+name: Update pre_commit File
+on: [workflow_call]
+
+jobs:
+  update_pre_commit:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Update pre commit configuration
+        run: python3 scripts/update_pre_commit.py
+
+      - name: Commit & Push changes
+        uses: actions-js/push@v1.5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.head_ref }}
+          message: "build(deps-dev): Update pre commit"
