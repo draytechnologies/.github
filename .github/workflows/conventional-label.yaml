@@ -1,0 +1,13 @@
+name: Conventional Release Labels
+on: [workflow_call]
+
+jobs:
+  label:
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - uses: bcoe/conventional-release-labels@v1
+        with:
+          type_labels: '{"breaking":"breaking-changes","build":"dependencies","chore":"chore","ci":"ci","docs":"documentation","feat":"feature","fix":"bug","hotfix":"hotfix","refactor":"refactor","test":"test"}'
+          ignored_types: '["invalid", "wontfix"]'
