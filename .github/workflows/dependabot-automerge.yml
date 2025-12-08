@@ -6,7 +6,7 @@ on:
       update-types:
         description: 'Comma-separated list of semver types to auto-merge (patch,minor,major)'
         required: false
-        default: 'patch,minor'
+        default: 'patch'
         type: string
 
 permissions:
