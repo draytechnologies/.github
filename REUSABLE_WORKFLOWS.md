@@ -56,11 +56,40 @@ jobs:
       update-types: 'minor,major'
 ```
 
+#### Exclude specific dependencies
+
+Prevent auto-merge for specific dependencies (e.g., language runtimes, critical packages):
+
+```yaml
+jobs:
+  dependabot-automerge:
+    uses: draytechnologies/.github/.github/workflows/dependabot-automerge.yml@main
+    with:
+      excluded-dependencies: 'node,python,npm,go,rust'
+```
+
+This example excludes base language packages from auto-merge, even if they are patch/minor updates.
+
+#### Allow all dependencies (no exclusions)
+
+To disable the exclusion list entirely and restore pre-v2.0.0 behavior:
+
+```yaml
+jobs:
+  dependabot-automerge:
+    uses: draytechnologies/.github/.github/workflows/dependabot-automerge.yml@main
+    with:
+      excluded-dependencies: ''
+```
+
+**Note**: Dependency names are **case-sensitive** and must match exactly (e.g., `node` ≠ `Node`).
+
 ### Features
 
 - ✅ Automatically approves qualifying Dependabot PRs
 - ✅ Enables squash auto-merge for qualifying PRs
 - ✅ Respects `disable-automerge` label to skip specific PRs
+- ✅ Configurable dependency exclusion list (default: node, python, npm)
 - ✅ Only acts on PRs from `dependabot[bot]`
 - ✅ Configurable semver update types (patch, minor, major)
 

@@ -8,6 +8,11 @@ on:
         required: false
         default: 'patch,minor'
         type: string
+      excluded-dependencies:
+        description: 'Comma-separated list of dependency names to exclude from auto-merge (e.g., node,python,npm). Empty string = no exclusions.'
+        required: false
+        default: 'node,python,npm'
+        type: string
 
 permissions:
   contents: write
@@ -31,8 +36,38 @@ jobs:
         id: checks
         env:
           UPDATE_TYPES: ${{ inputs.update-types }}
+          EXCLUDED_DEPS: ${{ inputs.excluded-dependencies }}
         run: |
           UPDATE_TYPE="${{ steps.metadata.outputs.update-type }}"
+
+          # Extract dependency names from metadata (JSON array)
+          DEPENDENCY_NAMES="${{ steps.metadata.outputs.dependency-names }}"
+
+          # Initialize exclusion flag
+          IS_EXCLUDED=false
+
+          # Check if any dependency is in the exclusion list
+          if [[ -n "$EXCLUDED_DEPS" && -n "$DEPENDENCY_NAMES" ]]; then
+            IFS=',' read -ra EXCLUDED_ARRAY <<< "$EXCLUDED_DEPS"
+            DEPS_LIST=$(echo "$DEPENDENCY_NAMES" | jq -r '.[]' 2>/dev/null || echo "")
+
+            if [[ -n "$DEPS_LIST" ]]; then
+              while IFS= read -r dep; do
+                for excluded in "${EXCLUDED_ARRAY[@]}"; do
+                  excluded_trimmed=$(echo "$excluded" | xargs)
+                  if [[ "$dep" == "$excluded_trimmed" ]]; then
+                    echo "⚠️  Dependency '$dep' is in the exclusion list - skipping auto-merge"
+                    IS_EXCLUDED=true
+                    break 2
+                  fi
+                done
+              done <<< "$DEPS_LIST"
+            fi
+          fi
+
+          if [[ "$IS_EXCLUDED" == "false" ]]; then
+            echo "✅ No excluded dependencies found - proceeding with checks"
+          fi
 
           # Build regex pattern from comma-separated input
           TYPES_PATTERN=""
@@ -58,8 +93,8 @@ jobs:
           HAS_AUTOMERGE=$(echo "$PR_DATA" | jq -r '.autoMergeRequest != null')
 
           # Determine if we should approve and/or enable auto-merge
-          SHOULD_APPROVE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_APPROVAL" == "false" ]] && echo true || echo false)
-          SHOULD_AUTOMERGE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_AUTOMERGE" == "false" ]] && echo true || echo false)
+          SHOULD_APPROVE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$IS_EXCLUDED" == "false" && "$HAS_APPROVAL" == "false" ]] && echo true || echo false)
+          SHOULD_AUTOMERGE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$IS_EXCLUDED" == "false" && "$HAS_AUTOMERGE" == "false" ]] && echo true || echo false)
 
           echo "should_approve=$SHOULD_APPROVE" >> $GITHUB_OUTPUT
           echo "should_automerge=$SHOULD_AUTOMERGE" >> $GITHUB_OUTPUT
