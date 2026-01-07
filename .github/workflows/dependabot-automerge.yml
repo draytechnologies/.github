@@ -8,6 +8,11 @@ on:
         required: false
         default: 'patch'
         type: string
+      excluded-packages:
+        description: 'Comma-separated list of package names to exclude from auto-merge'
+        required: false
+        default: 'python'
+        type: string
 
 permissions:
   contents: write
@@ -31,8 +36,27 @@ jobs:
         id: checks
         env:
           UPDATE_TYPES: ${{ inputs.update-types }}
+          EXCLUDED_PACKAGES: ${{ inputs.excluded-packages }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
         run: |
           UPDATE_TYPE="${{ steps.metadata.outputs.update-type }}"
+
+          # Check if dependency is in excluded list
+          IS_EXCLUDED=false
+          if [ -n "$EXCLUDED_PACKAGES" ]; then
+            IFS=',' read -ra EXCLUDED_ARRAY <<< "$EXCLUDED_PACKAGES"
+            IFS=',' read -ra DEPS_ARRAY <<< "$DEPENDENCY_NAMES"
+            for excluded in "${EXCLUDED_ARRAY[@]}"; do
+              excluded=$(echo "$excluded" | xargs)
+              for dep in "${DEPS_ARRAY[@]}"; do
+                dep=$(echo "$dep" | xargs)
+                if [ "$dep" == "$excluded" ]; then
+                  IS_EXCLUDED=true
+                  break 2
+                fi
+              done
+            done
+          fi
 
           # Build regex pattern from comma-separated input
           TYPES_PATTERN=""
@@ -58,8 +82,8 @@ jobs:
           HAS_AUTOMERGE=$(echo "$PR_DATA" | jq -r '.autoMergeRequest != null')
 
           # Determine if we should approve and/or enable auto-merge
-          SHOULD_APPROVE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_APPROVAL" == "false" ]] && echo true || echo false)
-          SHOULD_AUTOMERGE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_AUTOMERGE" == "false" ]] && echo true || echo false)
+          SHOULD_APPROVE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_APPROVAL" == "false" && "$IS_EXCLUDED" == "false" ]] && echo true || echo false)
+          SHOULD_AUTOMERGE=$([[ "$IS_ALLOWED_TYPE" == "true" && "$HAS_DISABLE_LABEL" == "false" && "$HAS_AUTOMERGE" == "false" && "$IS_EXCLUDED" == "false" ]] && echo true || echo false)
 
           echo "should_approve=$SHOULD_APPROVE" >> $GITHUB_OUTPUT
           echo "should_automerge=$SHOULD_AUTOMERGE" >> $GITHUB_OUTPUT
